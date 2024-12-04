@@ -1,0 +1,381 @@
+---
+title: "class 8 mini project"
+author: "Tiffany Chin 15700705"
+format: html
+---
+
+Side_Note: 
+
+```{r}
+head(mtcars)
+```
+
+Let's look at the mean value of every column:
+
+```{r}
+#margin = 1 for rows and 2 for columns. in this case we are looking at columns, so margin = 2 below.
+apply(mtcars, 2, mean)
+```
+
+Let's look at "spread" via `sd()` (standard deviation).
+
+```{r}
+apply(mtcars, 2, sd)
+```
+
+```{r}
+pca <- prcomp(mtcars)
+biplot(pca)
+```
+
+Let's try scaling the data:
+
+```{r}
+mtscale <- scale(mtcars)
+head(mtscale)
+```
+
+What is the mean and st dev of each "dimension"/column in mtscale?
+
+```{r}
+round(apply(mtscale, 2, mean), 3)
+apply(mtscale, 2, sd)
+```
+
+Make a ggplot of the original `mtcars` dataset, plotting `mpg` vs. `disp`.
+
+```{r}
+library(ggplot2)
+ggplot(mtcars, aes(mpg, disp)) +
+  geom_point()
+```
+
+Do the same for the scaled data under `mtscale`.
+
+```{r}
+ggplot(mtscale, aes(mpg, disp)) +
+  geom_point()
+```
+
+Both plots look the same when looking at points and placement, but the axes are different and the data is now centered on 0. The range of the data is no longer in the 100s. This is because of the scaling function we called earlier. Scaling does not change the relationship between the values.
+
+Now perform PCA on the scaled data `mtscale`.
+
+```{r}
+pca2 <- prcomp(mtscale)
+biplot(pca2)
+```
+
+The scaled PCA biplot now looks different, giving a better representation of the data. The axes are not being dominated by one or two columns, like disp that was much higher in value than mpg.
+
+
+## Breast Cancer FNA data
+
+First, retrieve the data from downloads and store in this project directory. Then read this csv file to store as a dataframe.
+
+```{r}
+fna.data <- "WisconsinCancer.csv"
+wisc.df <- read.csv(fna.data, row.names=1)
+head(wisc.df)
+```
+
+Remove the diagnosis column
+
+```{r}
+wisc.data <- wisc.df[,-1]
+```
+
+Now, set up a separate vector for the diagnosis column for later.
+
+```{r}
+diagnosis <- wisc.df[,1]
+#save as a factor, which will be important for plotting later
+diagnosis <- as.factor(diagnosis)
+```
+
+Q1: How many observations are in this dataset?
+
+```{r}
+length(wisc.data[,1])
+
+#or can just look at dimensions for the number of rows, which are the observations
+dim(wisc.data)
+```
+
+Q2: How many of the observations have a malignant diagnosis?
+
+```{r}
+onlyM <- grep(pattern = "M", x = diagnosis)
+length(onlyM)
+
+#can also use table
+table(wisc.df$diagnosis)
+```
+
+Q3: How many variables/features in the data are sufficed with _mean?
+
+```{r}
+columns <- colnames(wisc.data)
+length(grep(pattern = "_mean", columns))
+```
+
+```{r}
+colMeans(wisc.data)
+
+apply(wisc.data,2,sd)
+```
+
+```{r}
+wisc.pr <- prcomp(wisc.data, scale = T)
+summary(wisc.pr)
+```
+
+Q4: From your results, what proportion of the original variance is captured by the first principal components (PC1)?
+**The proportion of variance for PC1 is 0.4427 or 44.27%**
+
+Q5: How many principal components (PCs) are required to describe at least 70% of the original variance in the data?
+**PC3 accounts for at least 70% of the original variance of the data.**
+
+Q6: How many principal components (PCs) are required to describe at least 90% of the original variance in the data?
+**PC7 accounts for at least 90% of the original variance.**
+
+Create a biplot of the `wisc.pr` using the `biplot()` function.
+```{r}
+biplot(wisc.pr)
+```
+This plot is very ugly and hard to discern. A mess!
+
+Instead, try making a scatter plot to observe just the components of PC1 and PC2.
+
+```{r}
+head(wisc.pr$x)
+plot(wisc.pr$x[,1], wisc.pr$x[,2], col = diagnosis, xlab = "PC1", ylab = "PC2")
+```
+```{r}
+ggplot(wisc.pr$x, aes(wisc.pr$x[,1], wisc.pr$x[,2], col = diagnosis)) +
+  geom_point() +
+  labs(x = "PC1", y = "PC2")
+```
+
+
+Make a sree/elbow plot
+
+```{r}
+x <- summary(wisc.pr)
+x$importance
+plot(x$importance[2,], typ="b")
+```
+
+Q8: Generate a similar plot for principal components 1 and 3. What do you notice about these plots?
+
+```{r}
+plot(wisc.pr$x[,1], wisc.pr$x[,3], col = diagnosis, xlab = "PC1", ylab = "PC3")
+```
+PC2 explains greater variances compared to PC3, so there is greater difference of separation between PC1 and PC2 while PC1 and PC3 slightly overlap more.
+
+Use ggplot2 to make a nice figure.
+
+```{r}
+df <- as.data.frame(wisc.pr$x)
+#add diagnosis column back
+df$diagnosis <- diagnosis
+library(ggplot2)
+#make a scatter plot
+ggplot(df, aes(PC1, PC2, col = diagnosis)) +
+  geom_point()
+#this is the same plot that I made previously, a couple steps ago. Instead, here I set wisc.pr$x as its own dataframe so I can directly call for the PC1 and PC2 columns.
+```
+
+Variance can be explained using scree plots to show the proportion of variance as number of principal components increases. An "elbow" in the plot may point towards a number of principal components to pick. If an obvious elbow does not exist, you can instead calculate variance.
+
+```{r}
+pr.var <- wisc.pr$sdev^2
+head(pr.var)
+```
+
+Now, calculate variance explained by each principal component
+
+```{r}
+pve <- pr.var/sum(pr.var)
+#plot the variance explained for each principal component
+plot(pve, xlab = "Principal Component",
+     ylab = "Proportion of Variance Explained",
+     ylim = c(0, 1), type = "o")
+```
+
+Alternatively, you can also make a bar plot instead of a scree plot
+
+```{r}
+barplot(pve, ylab = "Precent of Variance Explained",
+     names.arg=paste0("PC",1:length(pve)), las=2, axes = FALSE)
+axis(2, at=pve, labels=round(pve,2)*100 )
+```
+
+Different ggplot based graph is shown below using factoextra.
+
+```{r}
+library(factoextra)
+fviz_eig(wisc.pr, addlabels = TRUE)
+```
+
+Q9: For the first principal component, what is the component of the loading vector (i.e. `wisc.pr$rotation[,1]`) for the feature `concave.points_mean`? This tells us how much this original feature contributes to the first PC.
+
+```{r}
+wisc.pr$rotation["concave.points_mean",1]
+```
+
+Hierarchical clustering
+
+First, scale `wisc.data` and assign it to `data.scaled`.
+
+```{r}
+data.scaled <- scale(wisc.data)
+```
+
+Next, calculate the Elucidean distances between all pairs of observations in this new scaled dataset and assign it to `data.dist`.
+
+```{r}
+data.dist <- dist(data.scaled)
+```
+
+Now, perform hierarchical clustering model using complete linkage.
+
+```{r}
+wisc.hclust <- hclust(data.dist, method = "complete")
+```
+
+Q10: Using the plot() and abline() functions, what is the height at which the clustering model has 4 clusters?
+
+```{r}
+plot(wisc.hclust)
+abline(h=19, col="red", lty=2)
+```
+
+Now, we want to select the number of clusters. Use `cutree()` to cut the tree so that it has 4 clusters. Assign these to the variable `wisc.hclust.clusters`.
+
+```{r}
+wisc.hclust.clusters <- cutree(wisc.hclust, h=19)
+```
+
+```{r}
+table(wisc.hclust.clusters, diagnosis)
+```
+Q11: OPTIONAL: Can you find a better cluster vs diagnoses match by cutting into a different number of clusters between 2 and 10? How do you judge the quality of your result in each case?
+
+```{r}
+clusters2 <- cutree(wisc.hclust, h=25)
+table(clusters2, diagnosis)
+```
+Just having two clusters is not great because cluster 1 has a mix of both benign and malignant.
+
+```{r}
+clusters3 <- cutree(wisc.hclust, h=15)
+table(clusters3, diagnosis)
+```
+With 7 clusters, it still does not seem to have useful separation. While maglignant and benign are separated better than just 2 clusters, there are much more small clusters that may be too resolved.
+
+```{r}
+clusters3 <- cutree(wisc.hclust, h=13)
+table(clusters3, diagnosis)
+```
+Same issue with 7! Over-clustered may not be great, but too little clusters could be bad too since it may introduce false positives and negatives into the population.
+
+Q12: Which method gives your favorite results for the same data.dist dataset? Explain your reasoning.
+
+```{r}
+wisc.pr.hclust <- hclust(data.dist, method = "ward.D2")
+
+plot(wisc.pr.hclust)
+```
+I like ward.D2 because it makes it easier to tell where the clusters are branching off of each other. Compared to "complete", it is much more organized to look at when you add an abline to it, and it's neater to perform the clustering with. Using "simple" or "average" is even harder to discern which clusters are similar to others.
+
+So using the above ward.D2 method, I'm cutting the clusters in half
+
+```{r}
+grps <- cutree(wisc.pr.hclust, k=2)
+table(grps)
+```
+
+```{r}
+table(grps, diagnosis)
+```
+```{r}
+plot(wisc.pr$x[,1:2], col=grps)
+```
+
+```{r}
+plot(wisc.pr$x[,1:2], col=diagnosis)
+```
+
+```{r}
+g <- as.factor(grps)
+levels(g)
+```
+
+```{r}
+g <- relevel(g,2)
+levels(g)
+```
+
+```{r}
+plot(wisc.pr$x[,1:2], col=g)
+```
+
+Create another clustering using the first 7 PCs for clustering
+```{r}
+wisc.pcr.hclust7 <- hclust(dist(wisc.pr$x[,1:7]), method = "ward.D2")
+
+```
+
+```{r}
+wisc.pr.hclust.clusters <- cutree(wisc.pcr.hclust7, k=2)
+
+```
+
+Q13: How well does the newly created model with four clusters separate out the two diagnoses?
+
+```{r}
+table(wisc.pr.hclust.clusters, diagnosis)
+```
+*skipped this question*
+
+Q14: How well do the hierarchical clustering models you created in previous sections (i.e. before PCA) do in terms of separating diagnoses? Again, use the table() function to compare the output of each model (wisc.km$cluster and wisc.hclust.clusters) with the vector containing the actual diagnoses.
+
+```{r}
+table(wisc.hclust.clusters, diagnosis)
+```
+*skipped*
+
+Prediction! Using our PCA model on a new cancer cell data and project that data onto our PCA space.
+
+```{r}
+url <- "https://tinyurl.com/new-samples-CSV"
+new <- read.csv(url)
+npc <- predict(wisc.pr, newdata=new)
+npc
+```
+Now, plot this with our PCA map.
+
+```{r}
+plot(wisc.pr$x[,1:2], col=g)
+points(npc[,1], npc[,2], col="blue", pch=16, cex=3)
+text(npc[,1], npc[,2], c(1,2), col="white")
+```
+Q16: Which of these new patients should we prioritize for follow up based on your results?
+**We should follow up on patient 2 since it is within the malignant cluster while patient 1 is more similar to the benign cluster.**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

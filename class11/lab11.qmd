@@ -1,0 +1,86 @@
+---
+title: "Lab 11 AlphaFold"
+author: "Tiffany Chin 15700705"
+format: html
+---
+
+## Structure Prediction using AlphaFold
+Accurately predict protein 3D structure with its sequence using AlphaFold AI
+
+Try AlphaFold using Adenylate Kinase
+
+```{r}
+library(bio3d)
+id <- "1ake_A"
+aa <- get.seq(id)
+aa
+```
+
+```{r}
+b <- blast.pdb(aa)
+attributes(b)
+```
+
+```{r}
+head(b$hit.tbl)
+```
+
+```{r}
+hits <- plot(b)
+```
+
+```{r}
+attributes(hits)
+```
+
+Top hits from blast results:
+
+```{r}
+hits$pdb.id
+```
+
+Now, download related PDB files
+
+```{r}
+files <- get.pdb(hits$pdb.id, path = "pdbs", split = TRUE, gzip = TRUE)
+```
+
+We have downloaded all ADK structures in the PDB database. To view efficiently, we need to align and superimpose these.
+
+First, install the BiocManager package from CRAN. Using `BiocManager::install()`, we can install any bioconductor package. Then, we can align.
+
+#install.packages("BiocManager")
+#BiocManager::install("msa")
+
+```{r}
+pdbs <- pdbaln(files, fit = TRUE, exefile="msa")
+```
+
+```{r}
+pdbs
+```
+
+## Principal Component Analysis
+
+```{r}
+pc <- pca(pdbs)
+plot(pc)
+```
+
+```{r}
+plot(pc, pc.axes= c(1:2))
+```
+
+Examine what PC2 (or any PCs) are capturing, we can plot the loadings to see the trajectory of the PCs
+
+```{r}
+mktrj(pc, pc=1, file="pc1.pdb")
+```
+
+## Class 11: Protein Structure Prediction with AlphaFold
+6. Generating your own structure predictions the dimer input. As it is a homodimer this consists of the same sequence twice with a colon between chains (make sure to remove the spaces when you copy and paste into the line on the colab notebook):
+
+>DB811864 full-length enriched swine cDNA library, adult ovary Sus scrofa cDNA clone OVRM10004A01 3', mRNA sequence
+VESRDTPKDPAVTSKSPSMAQDSGPSELLPNGDLEKRSEPQPEEGSPAGGQKGGAPAEGE GAAETPSEASRAVENGCCTPKDGR
+
+Follow #6-8 on the lab webpage: starting w/ 6. Visit AlphaFold2_mmseqs2 Colab note- book (at the time of writing this is currently the preferred AlphaFold version for our current prediction tasks.

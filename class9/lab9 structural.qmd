@@ -1,0 +1,143 @@
+---
+title: "Lab 9 Structural Bioinformatics"
+author: "Tiffany Chin 15700705"
+format: html
+---
+
+Structural Bioinformatics Pt. 1
+
+1. Introduction to the RCSB Protein Data Bank (PDB)
+
+Read CSV file from PDB site and load. This dataset has some column titles as characters, which will be an issue when trying to perform math functions. How do we fix this?
+
+```{r}
+pdbstats <- read.csv("Data Export Summary.csv", row.names = 1)
+head(pdbstats)
+```
+
+```{r}
+x <- pdbstats$X.ray
+x
+#comma will be an issue when converting to as.numeric
+#can substitute comma for nothing using gsub
+#sub only replaces for the first iterance while gsub will work multiple times
+x <- gsub(",", "", x)
+as.numeric(x)
+```
+
+Can now set the above as a function we can call back. We can use the apply function to apply this function for all columns we're interested in.
+
+```{r}
+convert_comma_numbers <- function(x) {
+  #remove commas
+  x <- gsub(",", "", x)
+  #convert to numeric
+  x <- as.numeric(x)
+  return(x)
+}
+```
+
+First, apply our function to the dataset. We have removed the column title for the first column, so it should not return NA, since the rest of the columns are all numeric values.
+
+```{r}
+pdb <- apply(pdbstats, c(1, 2), convert_comma_numbers)
+pdb
+```
+
+Q1. What percentage of structures in the PDB are solved by X-Ray and Electron Microscopy?
+
+```{r}
+#get sums
+xray_total <- sum(pdb[,1])
+xray_total
+
+em_total <- sum(pdb[,2])
+em_total
+
+total <- sum(pdb[,7])
+total
+
+#get percentage
+#for X-Ray
+xray_total / total * 100
+#for EM
+em_total / total * 100
+```
+
+Q2. What proportion of structures in the PDB are the protein?
+
+```{r}
+protein <- sum(pdb[1:3,])
+protein
+all_structures <- sum(pdb[,])
+all_structures
+protein/all_structures * 100
+```
+
+Q3. Type HIV in the PDB website search box on the home page and determine how many HIV-1 protease structures are in the current PDB?
+
+There are 4,563 structures!
+
+
+## Using Mol*
+
+![My first image from Mol-star](1HSG.png)
+![](1HSG-1.png)
+
+![water](1HSG-2.png)
+
+## Bio3D package for structural Bioinformatics
+
+```{r}
+library(bio3d)
+
+pdb <- read.pdb("1hsg")
+pdb
+```
+
+```{r}
+attributes(pdb)
+```
+
+```{r}
+head(pdb$atom)
+```
+
+```{r}
+pdbseq(pdb)[25]
+```
+
+Q. How many amino acids are in this structure?
+
+```{r}
+length(pdbseq(pdb))
+```
+
+## Functional dynamics prediction
+
+```{r}
+adk <- read.pdb("6s36")
+adk
+```
+
+```{r}
+source("https://tinyurl.com/viewpdb")
+library(r3dmol)
+library(shiny)
+
+view.pdb(pdb, backgroundColor = "pink")
+```
+
+```{r}
+view.pdb(adk)
+```
+
+```{r}
+modes <- nma(adk)
+plot(modes)
+```
+
+```{r}
+mktrj(modes, pdb=adk,9 file="adk.pdb")
+```
+

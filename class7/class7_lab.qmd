@@ -1,0 +1,205 @@
+---
+title: "Class 7: Machine Learning 1"
+author: "Tiffany Chin PID 15700705"
+format: html
+---
+
+Before we get into clustering methods, let's make some sample data to cluster where we know what the answer should be.
+
+To help with this, I will use the `rnorm()` function.
+
+```{r}
+hist(rnorm(150000, mean = c(-3,3)))
+#rnorm(150000, mean = c(-3,3))
+#same as
+n = 150000
+hist(c(rnorm(n, mean =3), rnorm(n, mean = -3)))
+```
+
+```{r}
+n=30
+x <- c(rnorm(n, mean =3), rnorm(n, mean = -3))
+#set y as reverse of x
+y <- rev(x)
+#use cbind to combine x and y together
+z <- cbind(x,y)
+z
+plot(z)
+```
+
+## K-means clustering
+
+The function in base R for k-means clustering is called `kmeans()`. The two arguments it needs, without defaults, is x (our data) and centers (the number of clusters, *k*).
+
+```{r}
+km <- kmeans(z, 2)
+km
+```
+#clustering vector shows which cluster that value has been assigned to. There are 30 points assigned to 1 cluster, and 30 assigned to the 2nd. Since our x and y are just reverse of each other, the first 30 are assigned to 1 and then last 30 are assigned to 2nd, which makes sense based off distance.
+
+```{r}
+#to print out the centers of the two clusters
+km$centers
+```
+
+Q. Print out the cluster membership vector (i.e. our main answer). Which cluster is everything in?
+
+```{r}
+km$cluster
+```
+
+Make a plot of this data with the clustering data shown, using base R plot
+
+```{r}
+plot(z, col="red")
+#the above colors all points red, but we want this separated
+#below, use the km clustering results to color the plot
+plot(z, col = km$cluster)
+#to this plot, add center points as green boxes
+points(km$centers, col = "green", pch = 15, cex =2)
+```
+
+Q. Can you cluster our data in `z` into four clusters?
+
+```{r}
+km4 <- kmeans(z, 4)
+km4
+plot(z, col = km4$cluster)
+points(km4$centers, col = "green", pch = 15, cex = 2)
+#kmeans will always map clusters based on how many k you specify, which is an issue when using it on unknown data to specify things like cell types. You can easily over- or under-cluster.
+#also re plotting this will be different each time because clustering will be different!!
+```
+
+## Hierarchical Clustering
+
+The main function for hierarchical clustering in base R is called `hclust()`.
+We will cluster step-by-step in a hierarchical cluster, starting from 60 (how many points of data we have) and merging clusters of similarity.
+More work than k-means clustering but more reliable clustering method than randomly assigning k. Unlike `kmeans()`, I cannot just pass in my data as an input. I first need a **distance matrix** from my data that will measure distance between every point and all other 59 points.
+
+```{r}
+d <- dist(z)
+hc <- hclust(d)
+hc
+```
+
+There is a specific hclust plot() method we can use
+
+```{r}
+plot(hc)
+abline(h=10, col="red")
+```
+
+To get my main clustering result (i.e. the membership vector), I can "cut" my tree at a given height. To do this I will use the `cutree()` at the line that we looked at in the above plot.
+
+```{r}
+grps <- cutree(hc, h=10)
+grps
+plot(z, col = grps)
+```
+
+## Principal Component Analysis
+
+PCA projects features onto the principal components. The motivation is to reduce the features dimensionality while only losing a small amount of information.
+
+Principal component analysis (PCA) is a well established "multivariate statistical technique" used to reduce the dimensionality of a complex data set to a more manageable number (typically 2D or 3D). This method is particularly useful for highlighting strong paterns and relationships in large datasets (i.e. revealing major similarities and diferences) that are otherwise hard to visualize. As we will see again and again in this course PCA is often used to make all sorts of bioinformatics data easy to explore and visualize.
+
+## Lab 7 Worksheet: PCA of UK food data
+
+Import UK_foods.csv
+```{r}
+url <- "https://tinyurl.com/UK-foods"
+x <- read.csv(url)
+```
+
+Q1. How many rows and columns are in your new data frame named x? What R functions could you use to answer this question?
+
+```{r}
+dim(x)
+```
+
+```{r}
+#View(x)
+head(x)
+```
+
+Row-names were not set up properly since we only want 4 columns, one for each country. This is a common occurrence where the first column in the x dataframe contains rownames considered as a new column. Fix this below.
+
+```{r}
+rownames(x) <- x[,1]
+x <- x[, -1]
+head(x)
+dim(x)
+```
+Another way to setting correct row-names could be to re-read the data file again and specify a row.names argument of read.csv() to say that the first column contains row.names
+
+```{r}
+x <- read.csv(url, row.names =1)
+head(x)
+dim(x)
+```
+Q2. Which approach to solving the 'row-names problem' mentioned above do you prefer and why? Is one approach more robust than another under certain circumstances?
+
+*I prefer using the 2nd method of specifying row.names=1 when performing read.csv() because of how you can accidentally remove columns using the first method if you aren't careful.*
+
+```{r}
+barplot(as.matrix(x), beside=T, col=rainbow(nrow(x)))
+```
+
+Generating a pair-wise plot can help somewhat to understanding the differences and similarities in this dataset. 
+
+```{r}
+pairs(x, col=rainbow(10), pch=16)
+```
+
+We can see with the pairwise plot that N.Ireland differs from England, Wales, and Scotland in that there are a few points, namely the blue and teal, that don't line up with the other countries. Looking at pairwise plots, those that follow the diagonal in the plot means that the x and y (the two countries of comparison) have a similar correlation for that data. To transpose means to sway the x and y data, so swapping the column and rows.
+
+**PCA**
+
+We will perform PCA in R using the base R `prcomp()` function. This function expects observations to be rows and variables to be columns, so we need to transpose our data.frame matrix with the `t()` transpose function.
+
+```{r}
+pca <- prcomp(t(x)) 
+summary(pca)
+```
+Plot PC1 and PC2 against each other.
+
+```{r}
+#"x" in pca data.frame contains the countries and PC info.
+plot(pca$x[,1], pca$x[,2], xlab= "PC1", ylab= "PC2", xlim= c(-270,500))
+text(pca$x[,1], pca$x[,2], colnames(x))
+```
+Customize this plot so the colors of the country names match the colors in our UK and Ireland map and table at the start of the document.
+
+```{r}
+plot(pca$x[,1], pca$x[,2], xlab= "PC1 (67.4%)", ylab= "PC2 (29%)", xlim= c(-270,500))
+text(pca$x[,1], pca$x[,2], colnames(x), col = c("black", "red", "blue", "green"))
+abline(h=0, col="gray", lty="dashed")
+abline(v=0, col="gray", lty="dashed")
+```
+
+# Variable Loadings plot
+We can also consider the influence of each of the original variables upon the principal components (typically known as loading scores). This information can be obtained from the prcomp() returned $rotation component. It can also be summarized with a call to biplot(), see below:
+
+```{r}
+## Lets focus on PC1 as it accounts for > 90% of variance 
+par(mar=c(10, 3, 0.35, 0))
+barplot( pca$rotation[,1], las=2 )
+```
+
+```{r}
+pca$rotation
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

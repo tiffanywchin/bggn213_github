@@ -1,0 +1,351 @@
+---
+title: "Class 13: RNAseq"
+author: "Tiffany Chin 15700705"
+format: html
+---
+
+The data for this hands-on session comes from a published RNA-seq experiment where airway smooth muscle cells were treated with dexamethasone, a synthetic glucocorticoid steroid with anti-inflammatory effects (Himes et al. 2014).
+Himes et al. used RNA-seq to profile gene expression changes in four different ASM cell lines treated with dexamethasone glucocorticoid.
+
+In this class session we will:
+- Open a new RStudio Project and Quarto document for today’s class;
+- Review how to install both Bioconductor and CRAN packages;
+- Explore the Himes et al. gene expression data using base R, dplyr and ggplot2 package functions;
+- Perform a detailed differential gene expression analysis with the DESeq2 package.
+- Render a reproducible PDF report of your work with answers to all questions below.
+
+Bioconductor setup:
+
+```{r}
+#install.packages("BiocManager")
+#BiocManager::install("DESeq2")
+```
+
+```{r}
+library(BiocManager)
+library(DESeq2)
+```
+
+## DESeq2 Required Inputs
+
+As input, the DESeq2 package expects (1) a data.frame of count data (as obtained from RNA-seq or another high-throughput sequencing experiment) and (2) a second data.frame with information about the samples - often called sample metadata (or colData in DESeq2-speak because it supplies metadata/information about the columns of the countData matrix)
+
+The count matrix (called the countData in DESeq2-speak) the value in the i-th row and the j-th column of the data.frame tells us how many reads can be assigned to gene i in sample j. Analogously, for other types of assays, the rows of this matrix might correspond e.g. to binding regions (with ChIP-Seq) or peptide sequences (with quantitative mass spectrometry).
+
+For the sample metadata (i.e. colData in DESeq2-speak) samples are in rows and metadata about those samples are in columns. Notice that the first column of colData must match the column names of countData (except the first, which is the gene ID column)
+
+## Import countData and colData
+
+First, download the two datasets **airway_scaledcounts.csv** and **airway_metadata.csv** into your project directory.
+
+```{r}
+counts <- read.csv("airway_scaledcounts.csv", row.names=1)
+metadata <- read.csv("airway_metadata.csv")
+```
+
+```{r}
+head(counts)
+```
+
+```{r}
+head(metadata)
+```
+
+> Q1. How many transcripts/genes are in the `counts` object?
+
+```{r}
+nrow(counts)
+```
+There are `r nrow(counts)` genes in this dataset.
+
+> Q2. How many "control" samples are there?
+
+```{r}
+table(metadata[,"dex"])
+sum(metadata$dex == "control")
+```
+There are `r sum(metadata$dex == "control")` in the metadata.
+
+I want to compare "control" vs "treated"
+
+1. Let's split the counts into `control.counts` and `treated.counts`
+
+```{r}
+metadata$id == colnames(counts)
+metadata$dex == "control"
+
+control.inds <- metadata$dex == "control"
+```
+
+Syntac with df[ROWs, COLs]
+
+```{r}
+control.counts <- counts[ , control.inds]
+head(control.counts)
+```
+
+To get treated df split up:
+
+```{r}
+metadata$dex == "treated"
+
+treated.inds <- metadata$dex == "treated"
+```
+
+```{r}
+treated.counts <- counts[ ,treated.inds]
+head(treated.counts)
+```
+
+Or, you could do this way to get treated from counts dataset, since we already have control logical. As seen below, they will all give the same result, which matches the treated.
+
+```{r}
+control.inds
+#opposite of control
+!control.inds
+#not equal control
+metadata$dex != "control"
+metadata$dex == "treated"
+```
+
+What is the average count value of each gene in the control and treated samples?
+
+2. Let's calculate the mean counts per gene for "control" and "treated" - then we can compare these :-). Let's call it `control.mean` and `treated.mean`
+
+I can use the `apply()` function to apply `mean()` over the rows or columns of any data.frame
+
+```{r}
+#we want to set margin = 1 for the rows, since we want to find the mean counts per gene across condition
+control.mean <- apply(control.counts, 1, mean)
+treated.mean <- apply(treated.counts, 1, mean)
+#make a mean counts dataframe for easy book-keeping, combining both control and treated means
+meancounts <- data.frame(control.mean, treated.mean)
+head(meancounts)
+```
+
+Make a plot of treated vs. control
+
+```{r}
+library(ggplot2)
+ggplot(meancounts, aes(control.mean, treated.mean)) +
+  geom_point()
+```
+
+This data is heavily skewed, most of the points are in the bottom corner. So we will need to log transform the data to scale it. This is a log2 transformation
+
+```{r}
+plot(meancounts, log="xy")
+```
+
+```{r}
+ggplot(meancounts, aes(control.mean, treated.mean)) +
+  geom_point() +
+  scale_x_continuous(trans="log2") +
+  scale_y_continuous(trans="log2")
+```
+
+Let's calculate the log2 fold change and add it to our wee table `meancounts`
+
+```{r}
+#log2(treated / control) and make a new col to set it in meancounts named as log2FC
+meancounts$log2FC <- log2(meancounts$treated.mean/meancounts$control.mean)
+head(meancounts)
+```
+
+We want to get rid of the NaN and -Inf. Anything with the 0 mean counts will cause an error with the math as we see in log2FC.
+
+```{r}
+#because false = 0 and true = 1, the sum of both rows true/false will be 0 for 2 false, 1 for t/f, and 2 for 2 trues
+#so we want the ones that are 0, which would be two falses for 0, meaning these values are both not 0
+#rowSums(meancounts[,1:2] == 0)
+to.rm <- rowSums(meancounts[,1:2] == 0) > 0
+#these are the values we want to remove, shown below in the meancounts data.frame
+```
+
+We can filter out all genes with zero counts in either control or treated, leaving only genes that have counts captured in control and treated.
+
+```{r}
+#if we flip to.rm using "!", we can find all the genes we want to keep.
+mycounts <- meancounts[!to.rm , ]
+head(mycounts)
+nrow(mycounts)
+```
+
+> How many "down" regulated genes do we have at the common log2FC value of -2?
+
+```{r}
+sum(mycounts$log2FC < -2 )
+```
+
+> How many "up at log2FC > +2?
+
+```{r}
+sum(mycounts$log2FC > 2)
+```
+
+Do we trust these results? Is there anything missing? Statistics!!
+Now we should do this properly : - )
+
+## DESeq analysis
+
+```{r}
+#| message: false
+library(DESeq2)
+```
+
+DESeq, like many BioConductor packages, wants our input data in a very specific format.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = metadata, design = ~dex)
+```
+
+The main function of DESeq is called `DESeq()`
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+```
+
+```{r}
+head(res)
+```
+
+Happy days!!
+
+We now have `padj` which is the adjusted p-value that takes account of false positives that can occur. This is necessary because we are conducting so many tests, which increase the chance of false positives. 
+
+Benjamini-Holchberg correction! (there is also the Bonferroni correction). pval adjusted is much more strict, making the pvals higher.
+
+A common overview figure plots the log2FC against adjusted p-value
+
+```{r}
+plot(res$log2FoldChange, res$padj)
+```
+
+This plot is not great, highly skewed data - so let's transform it by adding log to y-axis
+
+```{r}
+plot(res$log2FoldChange, log(res$padj))
+```
+
+Because we have applied log to the adj pval, we are now interested in the larger negative values. So instead, we can flip the y-axis by adding a - in front of log(res$padj). Now we have a volcano plot.
+
+Let's also add some details to this plot!
+
+```{r}
+plot(res$log2FoldChange, -log(res$padj))
+#to add a vertical line for log2FC +2 and -2
+abline(v=c(2, -2), col="gray")
+#add horizontal line for p value 0.005 (remember to add a - in front of log since we had previously done that to flip the plot)
+abline(h=-log(0.005), col="gray")
+```
+
+We can also color code this plot by adding a custom color vector
+
+```{r}
+#rep takes the entry and repeats it across the dataset
+mycols <- rep("gray", nrow(res))
+mycols[res$log2FoldChange > 2] <- "red"
+mycols[res$log2FoldChange < -2] <- "red"
+mycols[res$pvalue > 0.005] <- "gray"
+
+plot(res$log2FoldChange, -log(res$padj), col = mycols)
+#to add a vertical line for log2FC +2 and -2
+abline(v=c(2, -2), col="gray")
+#add horizontal line for p value 0.005 (remember to add a - in front of log since we had previously done that to flip the plot)
+abline(h=-log(0.005), col="gray")
+```
+
+Now, let's save our results.
+
+```{r}
+write.csv(res, file = "dexresults.csv")
+```
+
+## Gene annotation
+
+```{r}
+head(res)
+```
+
+Use the BioConductor packages to annotate the gene names
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+```
+
+
+```{r}
+columns(org.Hs.eg.db)
+```
+
+Our gene IDs are currently in ENSEMBL and we want to change it to SYMBOL (which is gene symbol)
+
+```{r}
+res$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res), # Our genenames
+                     keytype="ENSEMBL",        # The format of our genenames
+                     column="SYMBOL",          # The new format we want to add
+                     multiVals="first")
+```
+
+```{r}
+head(res)
+```
+
+## KEGG Pathway analysis
+
+```{r}
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+
+# Examine the first 2 pathways in this kegg set for humans
+head(kegg.sets.hs, 2)
+```
+
+We need our identifiers to be Entrez IDs for KEGG analysis
+
+```{r}
+res$entrez <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res), # Our genenames
+                     keytype="ENSEMBL",        # The format of our genenames
+                     column="ENTREZID",          # The new format we want to add
+                     multiVals="first")
+```
+
+```{r}
+foldchanges <- res$log2FoldChange
+#the below will name the foldchanges data with res$entrez id
+names(foldchanges) <- res$entrez
+head(foldchanges)
+```
+
+Gage pathway analysis function to check for overlap with known KEGG pathways: 
+
+```{r}
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+```{r}
+attributes(keggres)
+```
+
+```{r}
+# Look at the first three down (less) pathways
+head(keggres$less, 3)
+```
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa05310")
+```
+
+![A pathway figure](hsa05310.pathview.png)
+
+Resave csv file
+
+```{r}
+write.csv(res, file = "dexresults.csv")
+```
