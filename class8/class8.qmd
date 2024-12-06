@@ -1,7 +1,7 @@
 ---
 title: "class 8 mini project"
 author: "Tiffany Chin 15700705"
-format: html
+format: gfm
 ---
 
 Side_Note: 

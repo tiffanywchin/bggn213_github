@@ -1,7 +1,7 @@
 ---
 title: "Class 6: R Functions HW"
 author: "Tiffany 15700705"
-format: html
+format: gfm
 ---
 
 ```{r, warning=FALSE, message=FALSE}

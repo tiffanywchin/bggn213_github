@@ -1,7 +1,7 @@
 ---
 title: "Lab 9 Structural Bioinformatics"
 author: "Tiffany Chin 15700705"
-format: html
+format: gfm
 ---
 
 Structural Bioinformatics Pt. 1
@@ -135,9 +135,5 @@ view.pdb(adk)
 ```{r}
 modes <- nma(adk)
 plot(modes)
-```
-
-```{r}
-mktrj(modes, pdb=adk,9 file="adk.pdb")
 ```
 
